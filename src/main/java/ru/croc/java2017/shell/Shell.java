@@ -13,51 +13,87 @@ public class Shell {
 
     private static final String LS_FORMAT = "%c%c%c%c %15d %s %s";
 
-    private static final String MSG_NOT_DIRECTORY = "\"%s\" is not a directory";
-    private static final String MSG_NOT_FILE      = "\"%s\" is not a file";
-    private static final String MSG_NOT_EXIST     = "\"%s\" doesn't exist";
-    private static final String MSG_ALREADY_EXIST = "\"%s\" has already exist";
-    private static final String MSG_UNABLE_DELETE = "\"%s\" can't be deleted";
-    private static final String MSG_ILLEGAL_USAGE = "Illegal usage of command";
+    public class ShellIOException extends IOException {
+        public static final String MSG_NOT_DIRECTORY = "\"%s\" is not a directory";
+        public static final String MSG_NOT_FILE      = "\"%s\" is not a file";
+        public static final String MSG_NOT_EXIST     = "\"%s\" doesn't exist";
+        public static final String MSG_ALREADY_EXIST = "\"%s\" has already exist";
+        public static final String MSG_UNABLE_DELETE = "\"%s\" can't be deleted";
+        public static final String MSG_UNABLE_READ   = "\"%s\" can't be read";
+
+        public ShellIOException(Exception cause) {
+            super(cause);
+        }
+
+        public ShellIOException(String messageFormat, String path) {
+            super(String.format(messageFormat, path));
+        }
+    }
+
+    public class ShellRuntimeException extends RuntimeException {
+        ShellRuntimeException(String message) {
+            super(message);
+        }
+    }
+
+    public class ShellIllegalUsage extends ShellRuntimeException {
+        private static final String MSG_ILLEGAL_USAGE = "Illegal usage of command \"%s\"";
+
+        public ShellIllegalUsage(String command) {
+            super(String.format(MSG_ILLEGAL_USAGE, command));
+        }
+    }
+
+    public class ShellMissingArgumentException extends ShellRuntimeException {
+        private static final String MSG_MISSED_ARGUMENT = "Illegal usage of command \"%s\". Use \"%s\"";
+
+        public ShellMissingArgumentException(String command, String missedArgument) {
+            super(String.format(MSG_MISSED_ARGUMENT, command, missedArgument));
+        }
+    }
 
     public Shell() {
         currentPath = Paths.get("").toAbsolutePath();
     }
 
-    private Path getAbsolutePath(String path) throws InvalidPathException {
-        return currentPath.resolve(path).normalize();
+    private Path getAbsolutePath(String path) throws ShellIOException {
+        try {
+            return currentPath.resolve(path).normalize();
+        } catch (InvalidPathException err) {
+            throw new ShellIOException(err);
+        }
     }
 
-    private void moveDirectory(String path) {
+    private void moveDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         if (Files.exists(newPath)) {
             if (Files.isDirectory(newPath)) {
                 currentPath = newPath;
             } else {
-                System.out.println(String.format(MSG_NOT_DIRECTORY, path));
+                throw new ShellIOException(ShellIOException.MSG_NOT_DIRECTORY, path);
             }
         } else {
-            System.out.println(String.format(MSG_NOT_EXIST, path));
+            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
         }
     }
 
-    private void makeDirectory(String path) {
+    private void makeDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         try {
             Files.createDirectory(newPath);
         } catch (FileAlreadyExistsException err) {
-            System.out.println(String.format(MSG_ALREADY_EXIST, path));
+            throw new ShellIOException(ShellIOException.MSG_ALREADY_EXIST, path);
         } catch (IOException err) {
             while (!Files.exists(newPath.getParent())) {
                 newPath = newPath.getParent();
             }
-            System.out.println(String.format(MSG_NOT_EXIST, newPath));
+            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, newPath.toString());
         }
     }
 
-    private void listDirectory(String path) {
+    private void listDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         try {
@@ -89,19 +125,23 @@ public class Shell {
                 ));
             });
         } catch (NotDirectoryException err) {
-            System.out.println(String.format(MSG_NOT_DIRECTORY, path));
+            throw new ShellIOException(ShellIOException.MSG_NOT_DIRECTORY, path);
         } catch (IOException err) {
-            System.out.println(String.format(MSG_NOT_EXIST, path));
+            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
         }
     }
 
-    private void remove(String path, boolean recursive) {
+    private void remove(String path, boolean recursive) throws ShellIOException, ShellMissingArgumentException {
         Path newPath = getAbsolutePath(path);
 
         try {
-            Files.delete(newPath);
+            if (!Files.isDirectory(newPath)) {
+                Files.delete(newPath);
+            } else {
+                throw new ShellMissingArgumentException("rm", "-r");
+            }
         } catch (NoSuchFileException err) {
-            System.out.println(String.format(MSG_NOT_EXIST, path));
+            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
         } catch (DirectoryNotEmptyException err) {
             if (recursive) {
                 try {
@@ -109,55 +149,55 @@ public class Shell {
                         try {
                             Files.delete(p);
                         } catch (IOException er) {
-                            System.out.println(String.format(MSG_UNABLE_DELETE, p));
+                            System.out.println(String.format(ShellIOException.MSG_UNABLE_DELETE, p));
                         }
                     });
                 } catch (IOException err_) {
-                    System.out.println(String.format(MSG_UNABLE_DELETE, newPath));
+                    throw new ShellIOException(ShellIOException.MSG_UNABLE_DELETE, newPath.toString());
                 }
             } else {
-                System.out.println("Use \"-r\" modificator");
+                throw new ShellMissingArgumentException("rm", "-r");
             }
         } catch (IOException err) {
-            System.out.println(String.format(MSG_UNABLE_DELETE, newPath));
+            throw new ShellIOException(ShellIOException.MSG_UNABLE_DELETE, newPath.toString());
         }
     }
 
-    private void showFile(String path, int numberOfLines) {
+    private void showFile(String path, int numberOfLines) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         if (Files.isRegularFile(newPath)) {
             try {
                 Files.lines(newPath).limit(numberOfLines).forEach(System.out::println);
             } catch (IOException err) {
-                System.out.print("Didn't manage to open the file");
+                throw new ShellIOException(ShellIOException.MSG_UNABLE_READ, path);
             }
         } else {
             if (!Files.exists(newPath)) {
-                System.out.println(String.format(MSG_NOT_EXIST, path));
+                throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
             } else {
-                System.out.println(String.format(MSG_NOT_FILE, path));
+                throw new ShellIOException(ShellIOException.MSG_NOT_FILE, path);
             }
         }
     }
 
-    private void processMoveDirectory(String[] args) {
+    private void processMoveDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
         if (args.length == 2) {
             moveDirectory(args[1]);
         } else {
-            System.out.println(MSG_ILLEGAL_USAGE);
+            throw new ShellIllegalUsage("cd");
         }
     }
 
-    private void processMakeDirectory(String[] args) {
+    private void processMakeDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
         if (args.length == 2) {
             makeDirectory(args[1]);
         } else {
-            System.out.println(MSG_ILLEGAL_USAGE);
+            throw new ShellIllegalUsage("mkdir");
         }
     }
 
-    private void processlistDirectory(String[] args) {
+    private void processlistDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
         switch (args.length) {
             case 1:
                 listDirectory(currentPath.toString());
@@ -166,11 +206,11 @@ public class Shell {
                 listDirectory(args[1]);
                 break;
             default:
-                System.out.println(MSG_ILLEGAL_USAGE);
+                throw new ShellIllegalUsage("ls");
         }
     }
 
-    private void processRemove(String[] args) {
+    private void processRemove(String[] args) throws ShellIOException, ShellIllegalUsage {
         if (args.length == 3) {
             boolean recursive = false;
             String path = null;
@@ -181,7 +221,7 @@ public class Shell {
                 } else if (path == null) {
                     path = args[i];
                 } else {
-                    System.out.println(MSG_ILLEGAL_USAGE);
+                    throw new ShellIllegalUsage("rm");
                 }
             }
 
@@ -189,32 +229,36 @@ public class Shell {
         } else if (args.length == 2) {
             remove(args[1], false);
         } else {
-            System.out.println(MSG_ILLEGAL_USAGE);
+            throw new ShellIllegalUsage("rm");
         }
     }
 
-    private void processShowFile(String[] args) {
+    private void processShowFile(String[] args) throws ShellIOException, ShellIllegalUsage {
         if (args.length == 4) {
             int numberOfLines = -1;
             String path = null;
 
             for (int i = 1; i < args.length; i++) {
                 if (args[i].equals("-n") && i < args.length - 1) {
-                    numberOfLines = Integer.valueOf(args[++i]);
+                    try {
+                        numberOfLines = Integer.valueOf(args[++i]);
+                    } catch (NumberFormatException err) {
+                        throw new ShellIllegalUsage("head");
+                    }
                 } else if (path == null) {
                     path = args[i];
                 } else {
-                    System.out.println(MSG_ILLEGAL_USAGE);
+                    throw new ShellIllegalUsage("head");
                 }
             }
 
             if (numberOfLines < 0) {
-                System.out.println(MSG_ILLEGAL_USAGE);
+                throw new ShellIllegalUsage("head");
             }
 
             showFile(path, numberOfLines);
         } else {
-            System.out.println(MSG_ILLEGAL_USAGE);
+            throw new ShellIllegalUsage("head");
         }
     }
 
@@ -241,7 +285,7 @@ public class Shell {
                 default:
                     System.out.println(String.format("Command \"%s\" is not found", args[0]));
             }
-        } catch (InvalidPathException err) {
+        } catch (ShellIOException | ShellRuntimeException err) {
             System.out.println(err.getMessage());
         }
     }
@@ -274,7 +318,7 @@ public class Shell {
         reader.close();
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         try {
             Shell shell = new Shell();
             switch (args.length) {
