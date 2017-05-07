@@ -4,7 +4,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 
-import java.util.Comparator;
+import java.util.*;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,6 +55,8 @@ public class Shell {
         LIST_DIRECTORY ("ls"),
         REMOVE         ("rm"),
         SHOW_FILE      ("head"),
+        MAKE_FILE      ("mkfile"),
+        WRITE_FILE     ("echo"),
         NULL_COMMAND   (null);
 
         private final String command;
@@ -75,6 +77,10 @@ public class Shell {
                     return REMOVE;
                 case "head":
                     return SHOW_FILE;
+                case "mkfile":
+                    return MAKE_FILE;
+                case "echo":
+                    return WRITE_FILE;
                 default:
                     return NULL_COMMAND;
             }
@@ -122,10 +128,30 @@ public class Shell {
         } catch (FileAlreadyExistsException err) {
             throw new ShellIOException(ShellIOException.MSG_ALREADY_EXIST, path);
         } catch (IOException err) {
-            while (!Files.exists(newPath.getParent())) {
-                newPath = newPath.getParent();
+            if (!Files.exists(newPath.getParent())) {
+                while (!Files.exists(newPath.getParent())) {
+                    newPath = newPath.getParent();
+                }
+                throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, newPath.toString());
+            } else {
+                throw new ShellIOException(err);
             }
-            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, newPath.toString());
+        }
+    }
+
+    private void makeFile(String path) throws ShellIOException {
+        Path newPath = getAbsolutePath(path);
+
+        try {
+            Files.createFile(newPath);
+        } catch (FileAlreadyExistsException err) {
+            throw new ShellIOException(ShellIOException.MSG_ALREADY_EXIST, path);
+        } catch (IOException err) {
+            if (!Files.exists(newPath.getParent())) {
+                throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, newPath.toString());
+            } else {
+                throw new ShellIOException(err);
+            }
         }
     }
 
@@ -211,6 +237,26 @@ public class Shell {
         }
     }
 
+    private void writeTextToFile(String path, String text) throws ShellIOException {
+        Path newPath = getAbsolutePath(path);
+
+        if (!Files.exists(newPath)) {
+            throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
+        }
+
+        if (Files.isRegularFile(newPath)) {
+            try {
+                try (BufferedWriter writer = Files.newBufferedWriter(newPath, StandardOpenOption.APPEND)){
+                    writer.write(text);
+                }
+            } catch (IOException err) {
+                throw new ShellIOException(err);
+            }
+        } else {
+            throw new ShellIOException(ShellIOException.MSG_NOT_FILE, path);
+        }
+    }
+
     private void processMoveDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
         String path = null;
 
@@ -245,6 +291,24 @@ public class Shell {
         }
 
         makeDirectory(path);
+    }
+
+    private void processMakeFile(String[] args) throws ShellIOException, ShellIllegalUsage {
+        String path = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (path == null) {
+                path = args[i];
+            } else {
+                throw new ShellIllegalUsage(ShellCommands.MAKE_FILE);
+            }
+        }
+
+        if (path == null) {
+            throw new ShellIllegalUsage(ShellCommands.MAKE_FILE);
+        }
+
+        makeFile(path);
     }
 
     private void processlistDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
@@ -315,9 +379,25 @@ public class Shell {
         showFile(path, numberOfLines);
     }
 
-    private void processCommand(String command) {
-        String[] args = command.split(" ");
+    private void processWriteToFile(String[] args) throws ShellIOException, ShellIllegalUsage {
+        String path = null, message;
 
+        for (int i = 1; i < args.length; i++) {
+            if ((args[i].startsWith("\"") && args[i].endsWith("\""))
+                    || (args[i].startsWith("'") && args[i].endsWith("'"))) {
+                if (path != null) {
+                    message = args[i].substring(1, args[i].length() - 1);
+                    writeTextToFile(path, message);
+                } else {
+                    throw new ShellIllegalUsage(ShellCommands.WRITE_FILE);
+                }
+            } else if (path == null) {
+                path = args[i];
+            }
+        }
+    }
+
+    private void processCommand(String[] args) {
         try {
             switch (ShellCommands.getEnumCommand(args[0])) {
                 case MOVE_DIRECTORY:
@@ -335,6 +415,12 @@ public class Shell {
                 case SHOW_FILE:
                     processShowFile(args);
                     break;
+                case MAKE_FILE:
+                    processMakeFile(args);
+                    break;
+                case WRITE_FILE:
+                    processWriteToFile(args);
+                    break;
                 default:
                     System.out.println(String.format("Command \"%s\" is not found", args[0]));
             }
@@ -343,63 +429,81 @@ public class Shell {
         }
     }
 
-    public void processInputStream(InputStream input, boolean printCommands) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+    private String[] splitCommands(String command) {
         Pattern spaces = Pattern.compile("\\s+");
         Pattern quotesDouble = Pattern.compile("\"(.*?)\"");
-        Pattern quotesUnique = Pattern.compile("'(.*?)'");
+        Pattern quotesSingle = Pattern.compile("'(.*?)'");
 
-        String command;
-        while (true) {
-            System.out.print(currentPath);
-            System.out.print("$: ");
+        Matcher matcher;
+        List<String> argumentList = new LinkedList<>();
 
-            if ((command = reader.readLine()) == null) {
+        while (command.contains("\"") || command.contains("\'")) {
+            int indexQuotesDouble = command.indexOf("\"");
+            int indexQuotesSingle = command.indexOf("\'");
+
+            if (indexQuotesDouble < 0) {
+                matcher = quotesSingle.matcher(command);
+            } else if (indexQuotesSingle < 0) {
+                matcher = quotesDouble.matcher(command);
+            } else if (indexQuotesDouble < indexQuotesSingle) {
+                matcher = quotesDouble.matcher(command);
+            } else if (indexQuotesDouble > indexQuotesSingle) {
+                matcher = quotesSingle.matcher(command);
+            } else {
+                matcher = null;
+            }
+
+            if (matcher == null) {
                 break;
             }
 
-            if (command.contains("\"") || command.contains("\'")) {
-                int indexQuotesDouble = command.indexOf("\"");
-                int indexQuotesUnique = command.indexOf("\'");
-
-                Matcher matcher;
-
-                if (indexQuotesDouble < 0) {
-                    matcher = quotesUnique.matcher(command);
-                } else if (indexQuotesUnique < 0) {
-                    matcher = quotesDouble.matcher(command);
-                } else if (indexQuotesDouble < indexQuotesUnique) {
-                    matcher = quotesDouble.matcher(command);
-                } else {
-                    matcher = quotesUnique.matcher(command);
-                }
-
-                StringBuilder arguments = new StringBuilder();
-
-                while (matcher.find()) {
-                    arguments.append(' ');
-                    arguments.append(matcher.group());
-                }
-
-                command = matcher.replaceAll("");
-                command = spaces.matcher(command).replaceAll(" ").trim();
-                command = command + arguments.toString();
+            if (matcher.find()) {
+                argumentList.add(matcher.group());
             } else {
-                command = spaces.matcher(command).replaceAll(" ").trim();
+                break;
             }
 
-            if (command.length() > 0) {
-                if (printCommands) {
-                    System.out.println(command);
-                }
-
-                processCommand(command);
-            } else if (printCommands) {
-                System.out.print('\n');
-            }
+            command = matcher.replaceFirst("");
         }
 
-        reader.close();
+        List<String> commandsList;
+
+        if (command.length() > 0) {
+            commandsList = Arrays.asList(
+                    spaces.matcher(command).replaceAll(" ").trim().split(" "));
+        } else {
+            commandsList = new ArrayList<>();
+        }
+
+        String[] output = new String[commandsList.size() + argumentList.size()];
+        System.arraycopy(commandsList.toArray(), 0, output, 0, commandsList.size());
+        System.arraycopy(argumentList.toArray(), 0, output, commandsList.size(), argumentList.size());
+        return output;
+    }
+
+    public void processInputStream(InputStream input, boolean printCommands) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+            String command;
+            while (true) {
+                System.out.print(currentPath);
+                System.out.print("$: ");
+
+                if ((command = reader.readLine()) == null) {
+                    break;
+                }
+
+                String[] commandsArray = splitCommands(command);
+                if (commandsArray.length > 0) {
+                    if (printCommands) {
+                        System.out.println(command);
+                    }
+
+                    processCommand(commandsArray);
+                } else if (printCommands) {
+                    System.out.print('\n');
+                }
+            }
+        }
     }
 
     public static void main(String[] args) {
