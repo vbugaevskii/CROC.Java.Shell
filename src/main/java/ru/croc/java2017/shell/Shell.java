@@ -488,6 +488,11 @@ public class Shell {
                     break;
                 }
 
+                command = command.trim();
+                if (command.length() == 0) {
+                    continue;
+                }
+
                 String[] commandsArray = splitCommands(command);
                 if (commandsArray.length > 0) {
                     if (printCommands) {
