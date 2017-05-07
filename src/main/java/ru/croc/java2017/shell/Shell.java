@@ -78,6 +78,11 @@ public class Shell {
                     return NULL_COMMAND;
             }
         }
+
+        @Override
+        public String toString() {
+            return command;
+        }
     }
 
     private Path currentPath;
