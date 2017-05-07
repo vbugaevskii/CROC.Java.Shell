@@ -9,10 +9,6 @@ import java.util.Comparator;
 import java.util.regex.Pattern;
 
 public class Shell {
-    private Path currentPath;
-
-    private static final String LS_FORMAT = "%c%c%c%c %15d %s %s";
-
     public class ShellIOException extends IOException {
         public static final String MSG_NOT_DIRECTORY = "\"%s\" is not a directory";
         public static final String MSG_NOT_FILE      = "\"%s\" is not a file";
@@ -39,7 +35,7 @@ public class Shell {
     public class ShellIllegalUsage extends ShellRuntimeException {
         private static final String MSG_ILLEGAL_USAGE = "Illegal usage of command \"%s\"";
 
-        public ShellIllegalUsage(String command) {
+        public ShellIllegalUsage(ShellCommands command) {
             super(String.format(MSG_ILLEGAL_USAGE, command));
         }
     }
@@ -47,10 +43,44 @@ public class Shell {
     public class ShellMissingArgumentException extends ShellRuntimeException {
         private static final String MSG_MISSED_ARGUMENT = "Illegal usage of command \"%s\". Use \"%s\"";
 
-        public ShellMissingArgumentException(String command, String missedArgument) {
+        public ShellMissingArgumentException(ShellCommands command, String missedArgument) {
             super(String.format(MSG_MISSED_ARGUMENT, command, missedArgument));
         }
     }
+
+    public enum ShellCommands {
+        MOVE_DIRECTORY ("cd"),
+        MAKE_DIRECTORY ("mkdir"),
+        LIST_DIRECTORY ("ls"),
+        REMOVE         ("rm"),
+        SHOW_FILE      ("head"),
+        NULL_COMMAND   (null);
+
+        private final String command;
+
+        private ShellCommands(String command) {
+            this.command = command;
+        }
+
+        public static ShellCommands getEnumCommand(String command) {
+            switch (command) {
+                case "cd":
+                    return MOVE_DIRECTORY;
+                case "mkdir":
+                    return MAKE_DIRECTORY;
+                case "ls":
+                    return LIST_DIRECTORY;
+                case "rm":
+                    return REMOVE;
+                case "head":
+                    return SHOW_FILE;
+                default:
+                    return NULL_COMMAND;
+            }
+        }
+    }
+
+    private Path currentPath;
 
     public Shell() {
         currentPath = Paths.get("").toAbsolutePath();
@@ -92,6 +122,8 @@ public class Shell {
             throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, newPath.toString());
         }
     }
+
+    private static final String LS_FORMAT = "%c%c%c%c %15d %s %s";
 
     private void listDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
@@ -137,27 +169,19 @@ public class Shell {
         try {
             if (!Files.isDirectory(newPath)) {
                 Files.delete(newPath);
+            } else if (recursive) {
+                Files.walk(newPath).sorted(Comparator.reverseOrder()).forEach((Path p) -> {
+                    try {
+                        Files.delete(p);
+                    } catch (IOException er) {
+                        System.out.println(String.format(ShellIOException.MSG_UNABLE_DELETE, p));
+                    }
+                });
             } else {
-                throw new ShellMissingArgumentException("rm", "-r");
+                throw new ShellMissingArgumentException(ShellCommands.REMOVE, "-r");
             }
         } catch (NoSuchFileException err) {
             throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
-        } catch (DirectoryNotEmptyException err) {
-            if (recursive) {
-                try {
-                    Files.walk(newPath).sorted(Comparator.reverseOrder()).forEach((Path p) -> {
-                        try {
-                            Files.delete(p);
-                        } catch (IOException er) {
-                            System.out.println(String.format(ShellIOException.MSG_UNABLE_DELETE, p));
-                        }
-                    });
-                } catch (IOException err_) {
-                    throw new ShellIOException(ShellIOException.MSG_UNABLE_DELETE, newPath.toString());
-                }
-            } else {
-                throw new ShellMissingArgumentException("rm", "-r");
-            }
         } catch (IOException err) {
             throw new ShellIOException(ShellIOException.MSG_UNABLE_DELETE, newPath.toString());
         }
@@ -185,7 +209,7 @@ public class Shell {
         if (args.length == 2) {
             moveDirectory(args[1]);
         } else {
-            throw new ShellIllegalUsage("cd");
+            throw new ShellIllegalUsage(ShellCommands.MOVE_DIRECTORY);
         }
     }
 
@@ -193,7 +217,7 @@ public class Shell {
         if (args.length == 2) {
             makeDirectory(args[1]);
         } else {
-            throw new ShellIllegalUsage("mkdir");
+            throw new ShellIllegalUsage(ShellCommands.MAKE_DIRECTORY);
         }
     }
 
@@ -206,7 +230,7 @@ public class Shell {
                 listDirectory(args[1]);
                 break;
             default:
-                throw new ShellIllegalUsage("ls");
+                throw new ShellIllegalUsage(ShellCommands.LIST_DIRECTORY);
         }
     }
 
@@ -221,7 +245,7 @@ public class Shell {
                 } else if (path == null) {
                     path = args[i];
                 } else {
-                    throw new ShellIllegalUsage("rm");
+                    throw new ShellIllegalUsage(ShellCommands.REMOVE);
                 }
             }
 
@@ -229,7 +253,7 @@ public class Shell {
         } else if (args.length == 2) {
             remove(args[1], false);
         } else {
-            throw new ShellIllegalUsage("rm");
+            throw new ShellIllegalUsage(ShellCommands.REMOVE);
         }
     }
 
@@ -243,22 +267,22 @@ public class Shell {
                     try {
                         numberOfLines = Integer.valueOf(args[++i]);
                     } catch (NumberFormatException err) {
-                        throw new ShellIllegalUsage("head");
+                        throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
                     }
                 } else if (path == null) {
                     path = args[i];
                 } else {
-                    throw new ShellIllegalUsage("head");
+                    throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
                 }
             }
 
             if (numberOfLines < 0) {
-                throw new ShellIllegalUsage("head");
+                throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
             }
 
             showFile(path, numberOfLines);
         } else {
-            throw new ShellIllegalUsage("head");
+            throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
         }
     }
 
@@ -266,20 +290,20 @@ public class Shell {
         String[] args = command.split(" ");
 
         try {
-            switch (args[0]) {
-                case "cd":
+            switch (ShellCommands.getEnumCommand(args[0])) {
+                case MOVE_DIRECTORY:
                     processMoveDirectory(args);
                     break;
-                case "mkdir":
+                case MAKE_DIRECTORY:
                     processMakeDirectory(args);
                     break;
-                case "ls":
+                case LIST_DIRECTORY:
                     processlistDirectory(args);
                     break;
-                case "rm":
+                case REMOVE:
                     processRemove(args);
                     break;
-                case "head":
+                case SHOW_FILE:
                     processShowFile(args);
                     break;
                 default:
