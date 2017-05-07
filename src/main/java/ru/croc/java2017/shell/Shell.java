@@ -240,55 +240,49 @@ public class Shell {
     }
 
     private void processRemove(String[] args) throws ShellIOException, ShellIllegalUsage {
-        if (args.length == 3) {
-            boolean recursive = false;
-            String path = null;
+        boolean recursive = false;
+        String path = null;
 
-            for (int i = 1; i < args.length; i++) {
-                if (args[i].equals("-r")) {
-                    recursive = true;
-                } else if (path == null) {
-                    path = args[i];
-                } else {
-                    throw new ShellIllegalUsage(ShellCommands.REMOVE);
-                }
+        for (int i = 1; i < args.length; i++) {
+            if (args[i].equals("-r")) {
+                recursive = true;
+            } else if (path == null) {
+                path = args[i];
+            } else {
+                throw new ShellIllegalUsage(ShellCommands.REMOVE);
             }
+        }
 
-            remove(path, recursive);
-        } else if (args.length == 2) {
-            remove(args[1], false);
-        } else {
+        if (path == null) {
             throw new ShellIllegalUsage(ShellCommands.REMOVE);
         }
+
+        remove(path, recursive);
     }
 
     private void processShowFile(String[] args) throws ShellIOException, ShellIllegalUsage {
-        if (args.length == 4) {
-            int numberOfLines = -1;
-            String path = null;
+        int numberOfLines = -1;
+        String path = null;
 
-            for (int i = 1; i < args.length; i++) {
-                if (args[i].equals("-n") && i < args.length - 1) {
-                    try {
-                        numberOfLines = Integer.valueOf(args[++i]);
-                    } catch (NumberFormatException err) {
-                        throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
-                    }
-                } else if (path == null) {
-                    path = args[i];
-                } else {
+        for (int i = 1; i < args.length; i++) {
+            if (args[i].equals("-n") && i < args.length - 1) {
+                try {
+                    numberOfLines = Integer.valueOf(args[++i]);
+                } catch (NumberFormatException err) {
                     throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
                 }
-            }
-
-            if (numberOfLines < 0) {
+            } else if (path == null) {
+                path = args[i];
+            } else {
                 throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
             }
+        }
 
-            showFile(path, numberOfLines);
-        } else {
+        if (numberOfLines < 0 || path == null) {
             throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
         }
+
+        showFile(path, numberOfLines);
     }
 
     private void processCommand(String command) {
