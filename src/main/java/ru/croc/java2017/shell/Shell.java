@@ -246,7 +246,7 @@ public class Shell {
 
         if (Files.isRegularFile(newPath)) {
             try {
-                try (BufferedWriter writer = Files.newBufferedWriter(newPath, StandardOpenOption.APPEND)){
+                try (BufferedWriter writer = Files.newBufferedWriter(newPath, StandardOpenOption.APPEND)) {
                     writer.write(text);
                 }
             } catch (IOException err) {
@@ -450,10 +450,6 @@ public class Shell {
             } else if (indexQuotesDouble > indexQuotesSingle) {
                 matcher = quotesSingle.matcher(command);
             } else {
-                matcher = null;
-            }
-
-            if (matcher == null) {
                 break;
             }
 
