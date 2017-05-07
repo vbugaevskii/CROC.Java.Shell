@@ -1,11 +1,12 @@
 package ru.croc.java2017.shell;
 
 import java.io.*;
-
 import java.nio.file.*;
-
 import java.nio.file.attribute.FileTime;
+
 import java.util.Comparator;
+
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Shell {
@@ -211,35 +212,61 @@ public class Shell {
     }
 
     private void processMoveDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
-        if (args.length == 2) {
-            moveDirectory(args[1]);
-        } else {
+        String path = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (path == null) {
+                path = args[i];
+            } else {
+                throw new ShellIllegalUsage(ShellCommands.MOVE_DIRECTORY);
+            }
+        }
+
+        if (path == null) {
             throw new ShellIllegalUsage(ShellCommands.MOVE_DIRECTORY);
         }
+
+        moveDirectory(path);
     }
 
     private void processMakeDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
-        if (args.length == 2) {
-            makeDirectory(args[1]);
-        } else {
+        String path = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (path == null) {
+                path = args[i];
+            } else {
+                throw new ShellIllegalUsage(ShellCommands.MAKE_DIRECTORY);
+            }
+        }
+
+        if (path == null) {
             throw new ShellIllegalUsage(ShellCommands.MAKE_DIRECTORY);
         }
+
+        makeDirectory(path);
     }
 
     private void processlistDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
-        switch (args.length) {
-            case 1:
-                listDirectory(currentPath.toString());
-                break;
-            case 2:
-                listDirectory(args[1]);
-                break;
-            default:
+        String path = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (path == null) {
+                path = args[i];
+            } else {
                 throw new ShellIllegalUsage(ShellCommands.LIST_DIRECTORY);
+            }
         }
+
+        if (path == null) {
+            path = currentPath.toString();
+        }
+
+        listDirectory(path);
     }
 
-    private void processRemove(String[] args) throws ShellIOException, ShellIllegalUsage {
+    private void processRemove(String[] args) throws ShellIOException,
+            ShellIllegalUsage, ShellMissingArgumentException {
         boolean recursive = false;
         String path = null;
 
@@ -260,7 +287,8 @@ public class Shell {
         remove(path, recursive);
     }
 
-    private void processShowFile(String[] args) throws ShellIOException, ShellIllegalUsage {
+    private void processShowFile(String[] args) throws ShellIOException,
+            ShellIllegalUsage, ShellMissingArgumentException {
         int numberOfLines = -1;
         String path = null;
 
@@ -278,7 +306,9 @@ public class Shell {
             }
         }
 
-        if (numberOfLines < 0 || path == null) {
+        if (numberOfLines < 0) {
+            throw new ShellMissingArgumentException(ShellCommands.SHOW_FILE, "-n");
+        } else if (path == null) {
             throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
         }
 
@@ -316,6 +346,8 @@ public class Shell {
     public void processInputStream(InputStream input, boolean printCommands) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(input));
         Pattern spaces = Pattern.compile("\\s+");
+        Pattern quotesDouble = Pattern.compile("\"(.*?)\"");
+        Pattern quotesUnique = Pattern.compile("'(.*?)'");
 
         String command;
         while (true) {
@@ -326,7 +358,36 @@ public class Shell {
                 break;
             }
 
-            command = spaces.matcher(command).replaceAll(" ").trim();
+            if (command.contains("\"") || command.contains("\'")) {
+                int indexQuotesDouble = command.indexOf("\"");
+                int indexQuotesUnique = command.indexOf("\'");
+
+                Matcher matcher;
+
+                if (indexQuotesDouble < 0) {
+                    matcher = quotesUnique.matcher(command);
+                } else if (indexQuotesUnique < 0) {
+                    matcher = quotesDouble.matcher(command);
+                } else if (indexQuotesDouble < indexQuotesUnique) {
+                    matcher = quotesDouble.matcher(command);
+                } else {
+                    matcher = quotesUnique.matcher(command);
+                }
+
+                StringBuilder arguments = new StringBuilder();
+
+                while (matcher.find()) {
+                    arguments.append(' ');
+                    arguments.append(matcher.group());
+                }
+
+                command = matcher.replaceAll("");
+                command = spaces.matcher(command).replaceAll(" ").trim();
+                command = command + arguments.toString();
+            } else {
+                command = spaces.matcher(command).replaceAll(" ").trim();
+            }
+
             if (command.length() > 0) {
                 if (printCommands) {
                     System.out.println(command);
