@@ -1,5 +1,9 @@
 package ru.croc.java2017.shell;
 
+import org.jnativehook.GlobalScreen;
+import org.jnativehook.NativeHookException;
+import org.jnativehook.keyboard.NativeKeyEvent;
+
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
@@ -9,7 +13,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Shell {
+public class Shell extends ShellKeyListener {
     public class ShellIOException extends IOException {
         public static final String MSG_NOT_DIRECTORY = "\"%s\" is not a directory";
         public static final String MSG_NOT_FILE      = "\"%s\" is not a file";
@@ -397,7 +401,10 @@ public class Shell {
         }
     }
 
-    private void processCommand(String[] args) {
+    private void processCommand(String command) {
+        addProcessedCommand(command);
+        String[] args = splitCommands(command);
+
         try {
             switch (ShellCommands.getEnumCommand(args[0])) {
                 case MOVE_DIRECTORY:
@@ -477,31 +484,61 @@ public class Shell {
         return output;
     }
 
+    private String introMessage() {
+        return currentPath + "$: ";
+    }
+
+    private boolean mutex = false;
+
+    @Override
+    public void nativeKeyPressed(NativeKeyEvent e) {
+        if (mutex) {
+            return;
+        }
+
+        super.nativeKeyPressed(e);
+
+        switch (e.getKeyCode()) {
+            case NativeKeyEvent.VC_UP:
+            case NativeKeyEvent.VC_DOWN:
+                System.out.flush();
+                System.out.print("\r");
+                System.out.print(introMessage());
+
+                String command = getCurrentCommand();
+                if (command != null) {
+                    System.out.print(command);
+                }
+        }
+    }
+
     public void processInputStream(InputStream input, boolean printCommands) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
             String command;
+
             while (true) {
-                System.out.print(currentPath);
-                System.out.print("$: ");
+                System.out.print(introMessage());
 
                 if ((command = reader.readLine()) == null) {
                     break;
+                } else {
+                    command = command.trim();
                 }
 
-                command = command.trim();
-                if (command.length() == 0) {
-                    continue;
-                }
+                command = getCurrentCommand() != null ? getCurrentCommand() : command;
 
-                String[] commandsArray = splitCommands(command);
-                if (commandsArray.length > 0) {
+                if (command.length() > 0) {
                     if (printCommands) {
                         System.out.println(command);
                     }
 
-                    processCommand(commandsArray);
-                } else if (printCommands) {
-                    System.out.print('\n');
+                    mutex = true;
+                    processCommand(command);
+                    mutex = false;
+                } else {
+                    if (printCommands) {
+                        System.out.print('\n');
+                    }
                 }
             }
         }
@@ -512,7 +549,11 @@ public class Shell {
             Shell shell = new Shell();
             switch (args.length) {
                 case 0:
+                    GlobalScreen.registerNativeHook();
+                    GlobalScreen.addNativeKeyListener(shell);
                     shell.processInputStream(System.in, false);
+                    GlobalScreen.removeNativeKeyListener(shell);
+                    GlobalScreen.unregisterNativeHook();
                     break;
                 case 1:
                     shell.processInputStream(new FileInputStream(args[0]), true);
@@ -520,7 +561,7 @@ public class Shell {
                 default:
                     System.out.println("java -jar shell.jar [file_name]");
             }
-        } catch (IOException err) {
+        } catch (IOException | NativeHookException err) {
             System.out.println(err.getMessage());
         }
     }
