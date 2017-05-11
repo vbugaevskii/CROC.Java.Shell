@@ -15,6 +15,7 @@ import java.util.*;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class Shell extends ShellKeyListener {
     public class ShellIOException extends IOException {
@@ -240,7 +241,11 @@ public class Shell extends ShellKeyListener {
 
         if (Files.isRegularFile(newPath)) {
             try {
-                Files.lines(newPath).limit(numberOfLines).forEach(System.out::println);
+                Stream<String> stream = Files.lines(newPath);
+                if (numberOfLines > 0) {
+                    stream = stream.limit(numberOfLines);
+                }
+                stream.forEach(System.out::println);
             } catch (IOException err) {
                 throw new ShellIOException(ShellIOException.MSG_UNABLE_READ, path);
             }
@@ -390,9 +395,7 @@ public class Shell extends ShellKeyListener {
             }
         }
 
-        if (numberOfLines < 0) {
-            throw new ShellMissingArgumentException(ShellCommands.SHOW_FILE, "-n");
-        } else if (path == null) {
+        if (path == null) {
             throw new ShellIllegalUsage(ShellCommands.SHOW_FILE);
         }
 
@@ -561,7 +564,7 @@ public class Shell extends ShellKeyListener {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws NativeHookException {
         try {
             Shell shell = new Shell();
             switch (args.length) {
@@ -580,6 +583,10 @@ public class Shell extends ShellKeyListener {
             }
         } catch (IOException | NativeHookException err) {
             System.out.println(err.getMessage());
+        } finally {
+            if (GlobalScreen.isNativeHookRegistered()) {
+                GlobalScreen.unregisterNativeHook();
+            }
         }
     }
 }
