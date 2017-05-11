@@ -12,11 +12,11 @@ public class TestSplitCommands {
     public void testEasy() {
         input  = "head -n   10  \t test.txt";
         output = new String[] {"head", "-n", "10", "test.txt"};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
 
         input  = "    cd    ../../test    \n\n\n";
         output = new String[] {"cd", "../../test"};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
     }
 
     @Test
@@ -25,36 +25,36 @@ public class TestSplitCommands {
 
         input  = String.format("echo \"%s\" file.txt", tongueTwister);
         output = new String[] {"echo", "file.txt", String.format("\"%s\"", tongueTwister)};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
 
         input  = String.format("echo '%s' file.txt", tongueTwister);
         output = new String[] {"echo", "file.txt", String.format("'%s'", tongueTwister)};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
     }
 
     @Test
     public void testQuotesMixed() {
         input = "\"Words like violence\n'Break\tthe   silence'\"";
         output = new String[] {input};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
 
         input = "'Words like violence\n\"Break\tthe   silence\"'";
         output = new String[] {input};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
     }
 
     @Test
     public void testQuotesMixedFailed() {
         input = "echo \"string1 'string2'";
         output = input.split(" ");
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
 
         input = "echo 'string1 \"string2\"";
         output = input.split(" ");
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
 
         input  = "echo 'string2' \"string1";
         output = new String[] {"echo", "\"string1", "'string2'"};
-        assertArrayEquals(Shell.splitCommands(input), output);
+        assertArrayEquals(output, Shell.splitCommands(input));
     }
 }
