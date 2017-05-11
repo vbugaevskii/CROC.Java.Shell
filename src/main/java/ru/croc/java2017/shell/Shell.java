@@ -1,5 +1,8 @@
 package ru.croc.java2017.shell;
 
+import com.sun.istack.internal.NotNull;
+
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.jnativehook.GlobalScreen;
 import org.jnativehook.NativeHookException;
 import org.jnativehook.keyboard.NativeKeyEvent;
@@ -391,6 +394,7 @@ public class Shell extends ShellKeyListener {
                     || (args[i].startsWith("'") && args[i].endsWith("'"))) {
                 if (path != null) {
                     message = args[i].substring(1, args[i].length() - 1);
+                    message = StringEscapeUtils.unescapeJava(message);
                     writeTextToFile(path, message);
                 } else {
                     throw new ShellIllegalUsage(ShellCommands.WRITE_FILE);
@@ -436,10 +440,10 @@ public class Shell extends ShellKeyListener {
         }
     }
 
-    private String[] splitCommands(String command) {
+    public static String[] splitCommands(@NotNull String command) {
         Pattern spaces = Pattern.compile("\\s+");
-        Pattern quotesDouble = Pattern.compile("\"(.*?)\"");
-        Pattern quotesSingle = Pattern.compile("'(.*?)'");
+        Pattern quotesDouble = Pattern.compile("\"((.|\\n)*?)\"");
+        Pattern quotesSingle = Pattern.compile("'((.|\\n)*?)'");
 
         Matcher matcher;
         List<String> argumentList = new LinkedList<>();
