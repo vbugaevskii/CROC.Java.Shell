@@ -1,7 +1,5 @@
 package ru.croc.java2017.shell;
 
-import com.sun.istack.internal.NotNull;
-
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.jnativehook.GlobalScreen;
 import org.jnativehook.NativeHookException;
@@ -155,7 +153,11 @@ public class Shell extends ShellKeyListener {
         Path newPath = getAbsolutePath(path);
 
         try {
-            Files.createFile(newPath);
+            if (!Files.exists(newPath)) {
+                Files.createFile(newPath);
+            } else {
+                throw new ShellIOException(ShellIOException.MSG_ALREADY_EXIST, path);
+            }
         } catch (FileAlreadyExistsException err) {
             throw new ShellIOException(ShellIOException.MSG_ALREADY_EXIST, path);
         } catch (IOException err) {
@@ -456,7 +458,7 @@ public class Shell extends ShellKeyListener {
         }
     }
 
-    public static String[] splitCommands(@NotNull String command) {
+    public static String[] splitCommands(String command) {
         Pattern spaces = Pattern.compile("\\s+");
         Pattern quotesDouble = Pattern.compile("\"((.|\\n)*?)\"");
         Pattern quotesSingle = Pattern.compile("'((.|\\n)*?)'");
