@@ -105,7 +105,7 @@ public class Shell extends ShellKeyListener {
         currentPath = Paths.get("").toAbsolutePath();
     }
 
-    private Path getAbsolutePath(String path) throws ShellIOException {
+    public Path getAbsolutePath(String path) throws ShellIOException {
         try {
             return currentPath.resolve(path).normalize();
         } catch (InvalidPathException err) {
@@ -113,7 +113,7 @@ public class Shell extends ShellKeyListener {
         }
     }
 
-    private void moveDirectory(String path) throws ShellIOException {
+    public Path moveDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         if (Files.exists(newPath)) {
@@ -125,9 +125,11 @@ public class Shell extends ShellKeyListener {
         } else {
             throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
         }
+
+        return newPath;
     }
 
-    private void makeDirectory(String path) throws ShellIOException {
+    public Path makeDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         try {
@@ -144,9 +146,11 @@ public class Shell extends ShellKeyListener {
                 throw new ShellIOException(err);
             }
         }
+
+        return newPath;
     }
 
-    private void makeFile(String path) throws ShellIOException {
+    public Path makeFile(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         try {
@@ -160,11 +164,13 @@ public class Shell extends ShellKeyListener {
                 throw new ShellIOException(err);
             }
         }
+
+        return newPath;
     }
 
     private static final String LS_FORMAT = "%c%c%c%c %15d %s %s";
 
-    private void listDirectory(String path) throws ShellIOException {
+    public Path listDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         try {
@@ -200,9 +206,11 @@ public class Shell extends ShellKeyListener {
         } catch (IOException err) {
             throw new ShellIOException(ShellIOException.MSG_NOT_EXIST, path);
         }
+
+        return newPath;
     }
 
-    private void remove(String path, boolean recursive) throws ShellIOException, ShellMissingArgumentException {
+    public Path remove(String path, boolean recursive) throws ShellIOException, ShellMissingArgumentException {
         Path newPath = getAbsolutePath(path);
 
         try {
@@ -224,9 +232,10 @@ public class Shell extends ShellKeyListener {
         } catch (IOException err) {
             throw new ShellIOException(ShellIOException.MSG_UNABLE_DELETE, newPath.toString());
         }
+        return newPath;
     }
 
-    private void showFile(String path, int numberOfLines) throws ShellIOException {
+    public Path showFile(String path, int numberOfLines) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         if (Files.isRegularFile(newPath)) {
@@ -242,9 +251,11 @@ public class Shell extends ShellKeyListener {
                 throw new ShellIOException(ShellIOException.MSG_NOT_FILE, path);
             }
         }
+
+        return newPath;
     }
 
-    private void writeTextToFile(String path, String text) throws ShellIOException {
+    public Path writeTextToFile(String path, String text) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
         if (!Files.exists(newPath)) {
@@ -262,6 +273,8 @@ public class Shell extends ShellKeyListener {
         } else {
             throw new ShellIOException(ShellIOException.MSG_NOT_FILE, path);
         }
+
+        return newPath;
     }
 
     private void processMoveDirectory(String[] args) throws ShellIOException, ShellIllegalUsage {
