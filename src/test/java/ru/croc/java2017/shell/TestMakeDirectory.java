@@ -14,13 +14,10 @@ public class TestMakeDirectory extends TestCreatorFolder {
     public void commonTest() throws ShellIOException{
         Path path = shell.makeDirectory("dir");
         assertTrue(Files.exists(path) && Files.isDirectory(path));
-
-        path = shell.makeDirectory("dir/path");
-        assertTrue(Files.exists(path) && Files.isDirectory(path));
     }
 
     @Test(expected = ShellIOException.class)
-    public void throwsNotExits() throws ShellIOException {
+    public void throwsNotInCurrentDirectory() throws ShellIOException {
         shell.makeDirectory("dir/path");
     }
 

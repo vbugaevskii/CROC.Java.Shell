@@ -16,14 +16,11 @@ public class TestMakeFile extends TestCreatorFolder {
         assertTrue(Files.exists(path) && Files.isRegularFile(path));
 
         shell.makeDirectory("dir");
-        path = shell.makeFile("dir/cheburek.txt");
-        assertTrue(Files.exists(path) && Files.isRegularFile(path));
-
         shell.makeFile("dir");
     }
 
     @Test(expected = ShellIOException.class)
-    public void throwsDirectoryNotExits() throws ShellIOException {
+    public void throwsNotInCurrentDirectory() throws ShellIOException {
         shell.makeFile("dir/cheburek.txt");
     }
 

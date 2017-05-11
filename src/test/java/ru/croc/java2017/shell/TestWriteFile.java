@@ -28,8 +28,7 @@ public class TestWriteFile extends TestCreatorFolder {
 
     @Test
     public void commonTest() throws IOException {
-        shell.makeDirectory("path");
-        shell.makeFile("path/cheburek.txt");
+        shell.makeFile("cheburek.txt");
 
         String message =
                 "Every breaking wave on the shore,\n" +
@@ -42,7 +41,7 @@ public class TestWriteFile extends TestCreatorFolder {
                 "Winter wouldn't leave it alone, alone.\n" +
                 "\n\n\n";
 
-        Path path = shell.writeTextToFile("path/cheburek.txt", message);
+        Path path = shell.writeTextToFile("cheburek.txt", message);
 
         StringBuilder stringBuilder = new StringBuilder();
         List<String> linesRead = Files.readAllLines(path);

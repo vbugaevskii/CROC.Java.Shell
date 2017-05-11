@@ -24,6 +24,8 @@ public class Shell extends ShellKeyListener {
         public static final String MSG_UNABLE_DELETE = "\"%s\" can't be deleted";
         public static final String MSG_UNABLE_READ   = "\"%s\" can't be read";
 
+        public static final String MSG_NOT_CURRENT_DIR = "\"%s\" is not in current directory";
+
         public ShellIOException(Exception cause) {
             super(cause);
         }
@@ -131,6 +133,10 @@ public class Shell extends ShellKeyListener {
     public Path makeDirectory(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
 
+        if (!newPath.getParent().equals(currentPath)) {
+            throw new ShellIOException(ShellIOException.MSG_NOT_CURRENT_DIR, path);
+        }
+
         try {
             Files.createDirectory(newPath);
         } catch (FileAlreadyExistsException err) {
@@ -151,6 +157,10 @@ public class Shell extends ShellKeyListener {
 
     public Path makeFile(String path) throws ShellIOException {
         Path newPath = getAbsolutePath(path);
+
+        if (!newPath.getParent().equals(currentPath)) {
+            throw new ShellIOException(ShellIOException.MSG_NOT_CURRENT_DIR, path);
+        }
 
         try {
             if (!Files.exists(newPath)) {

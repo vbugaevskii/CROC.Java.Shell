@@ -8,8 +8,8 @@ public class TestMoveDirectory extends TestCreatorFolder {
     @Test
     public void commonTest() throws ShellIOException {
         shell.makeDirectory("dir");
-        shell.makeDirectory("dir/path");
         shell.moveDirectory("dir");
+        shell.makeDirectory("path");
         shell.moveDirectory("../");
         shell.moveDirectory("dir/path");
         shell.moveDirectory("../");
